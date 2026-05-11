@@ -31,7 +31,7 @@ var import_obsidian = require("obsidian");
 var DEFAULT_SETTINGS = {
   openInBrowser: false,
   fullscreenMode: false,
-  autoFetchTitle: false
+  autoFetchTitle: true
 };
 var VIEW_TYPE_WEB = "url-webview";
 var UrlInternalViewerPlugin = class extends import_obsidian.Plugin {

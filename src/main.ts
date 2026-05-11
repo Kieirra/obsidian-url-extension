@@ -9,7 +9,7 @@ interface UrlViewerSettings {
 const DEFAULT_SETTINGS: UrlViewerSettings = {
     openInBrowser: false,
     fullscreenMode: false,
-    autoFetchTitle: false
+    autoFetchTitle: true
 }
 
 const VIEW_TYPE_WEB = "url-webview";
