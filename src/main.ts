@@ -1,13 +1,15 @@
-import { Plugin, WorkspaceLeaf, FileView, TFile, PluginSettingTab, App, Setting, normalizePath, TFolder } from "obsidian";
+import { Plugin, WorkspaceLeaf, FileView, TFile, PluginSettingTab, App, Setting, normalizePath, TFolder, Notice, requestUrl } from "obsidian";
 
 interface UrlViewerSettings {
     openInBrowser: boolean;
     fullscreenMode: boolean;
+    autoFetchTitle: boolean;
 }
 
 const DEFAULT_SETTINGS: UrlViewerSettings = {
     openInBrowser: false,
-    fullscreenMode: false
+    fullscreenMode: false,
+    autoFetchTitle: true
 }
 
 const VIEW_TYPE_WEB = "url-webview";
@@ -19,8 +21,8 @@ type WebviewTag = HTMLElement & {
     reload: () => void;
     goBack: () => void;
     goForward: () => void;
-    canGoBack: () => Promise<boolean>;
-    canGoForward: () => Promise<boolean>;
+    canGoBack: () => boolean;
+    canGoForward: () => boolean;
 };
 
 export default class UrlInternalViewerPlugin extends Plugin {
@@ -184,14 +186,10 @@ class UrlWebView extends FileView {
     private updateActionStates() {
         if (!isWebviewTag(this.webviewEl)) return;
         if (this.backActionEl) {
-            this.webviewEl.canGoBack().then((canGoBack: boolean) => {
-                if (this.backActionEl) this.backActionEl.toggleClass("is-disabled", !canGoBack);
-            });
+            this.backActionEl.toggleClass("is-disabled", !this.webviewEl.canGoBack());
         }
         if (this.forwardActionEl) {
-            this.webviewEl.canGoForward().then((canGoForward: boolean) => {
-                if (this.forwardActionEl) this.forwardActionEl.toggleClass("is-disabled", !canGoForward);
-            });
+            this.forwardActionEl.toggleClass("is-disabled", !this.webviewEl.canGoForward());
         }
     }
 
@@ -263,6 +261,14 @@ class UrlWebView extends FileView {
         saveBtn.onclick = async () => {
             await this.app.vault.modify(file, textarea.value);
             this.isEditing = false;
+            const freshCreate = this.deleteOnCancelIfUntouched;
+            this.deleteOnCancelIfUntouched = false;
+            if (freshCreate && this.settings.autoFetchTitle) {
+                const url = this.extractUrl(textarea.value);
+                if (isValidUrl(url)) {
+                    await this.tryFetchAndRename(file, url);
+                }
+            }
             await this.onLoadFile(file);
         };
 
@@ -322,6 +328,26 @@ class UrlWebView extends FileView {
             window.open(url, "_blank");
         }
     }
+
+    private async tryFetchAndRename(file: TFile, url: string): Promise<void> {
+        let raw: string | null = null;
+        try {
+            const res = await requestUrl({ url, method: 'GET' });
+            raw = extractTitleFromHtml(res.text);
+        } catch { /* fall through */ }
+        const sanitized = raw ? sanitizeFilename(decodeHtmlEntities(raw)) : "";
+        if (!sanitized) { new Notice("Could not fetch title"); return; }
+        const parentPath = file.parent ? file.parent.path : "";
+        const prefix = parentPath && parentPath !== "/" ? `${parentPath}/` : "";
+        let candidate = normalizePath(`${prefix}${sanitized}.url`);
+        for (let i = 1; this.app.vault.getAbstractFileByPath(candidate); i++) {
+            candidate = normalizePath(`${prefix}${sanitized} (${i}).url`);
+        }
+        try {
+            await this.app.fileManager.renameFile(file, candidate);
+            new Notice(`Renamed to ${sanitized}`);
+        } catch { new Notice("Rename failed"); }
+    }
 }
 
 class UrlViewerSettingTab extends PluginSettingTab {
@@ -355,6 +381,16 @@ class UrlViewerSettingTab extends PluginSettingTab {
                     this.plugin.settings.fullscreenMode = value;
                     await this.plugin.saveSettings();
                 }));
+
+        new Setting(containerEl)
+            .setName('Auto-fetch URL title on save')
+            .setDesc('Automatically fetch the page title and rename the file when saving a new URL.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.autoFetchTitle)
+                .onChange(async (value) => {
+                    this.plugin.settings.autoFetchTitle = value;
+                    await this.plugin.saveSettings();
+                }));
     }
 }
 
@@ -374,4 +410,33 @@ function isValidUrl(url: string): boolean {
     } catch (error) {
         return false;
     }
+}
+
+function extractTitleFromHtml(html: string): string | null {
+    const headEnd = html.indexOf('</head>');
+    const scope = headEnd >= 0 ? html.slice(0, headEnd + 7) : html;
+    const pick = (key: string): string | null => {
+        const re = new RegExp(`<meta\\b[^>]*(?:property|name)\\s*=\\s*["']${key}["'][^>]*>`, 'i');
+        const tag = re.exec(scope);
+        if (!tag) return null;
+        const c = /content\s*=\s*["']([^"']*)["']/i.exec(tag[0]);
+        const v = c ? c[1].trim() : '';
+        return v || null;
+    };
+    const og = pick('og:title') || pick('twitter:title');
+    if (og) return og;
+    const t = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(scope);
+    const v = t ? t[1].trim() : '';
+    return v || null;
+}
+
+function decodeHtmlEntities(s: string): string {
+    const map: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&nbsp;': ' ' };
+    return s.replace(/&(?:amp|lt|gt|quot|apos|nbsp);/g, (e) => map[e])
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+        .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)));
+}
+
+function sanitizeFilename(s: string): string {
+    return s.replace(/[\/\\:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
 }
