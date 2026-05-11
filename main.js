@@ -30,7 +30,8 @@ module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
 var DEFAULT_SETTINGS = {
   openInBrowser: false,
-  fullscreenMode: false
+  fullscreenMode: false,
+  autoFetchTitle: false
 };
 var VIEW_TYPE_WEB = "url-webview";
 var UrlInternalViewerPlugin = class extends import_obsidian.Plugin {
@@ -172,14 +173,10 @@ var UrlWebView = class extends import_obsidian.FileView {
   updateActionStates() {
     if (!isWebviewTag(this.webviewEl)) return;
     if (this.backActionEl) {
-      this.webviewEl.canGoBack().then((canGoBack) => {
-        if (this.backActionEl) this.backActionEl.toggleClass("is-disabled", !canGoBack);
-      });
+      this.backActionEl.toggleClass("is-disabled", !this.webviewEl.canGoBack());
     }
     if (this.forwardActionEl) {
-      this.webviewEl.canGoForward().then((canGoForward) => {
-        if (this.forwardActionEl) this.forwardActionEl.toggleClass("is-disabled", !canGoForward);
-      });
+      this.forwardActionEl.toggleClass("is-disabled", !this.webviewEl.canGoForward());
     }
   }
   webviewGoBack() {
@@ -239,6 +236,14 @@ var UrlWebView = class extends import_obsidian.FileView {
     saveBtn.onclick = async () => {
       await this.app.vault.modify(file, textarea.value);
       this.isEditing = false;
+      const freshCreate = this.deleteOnCancelIfUntouched;
+      this.deleteOnCancelIfUntouched = false;
+      if (freshCreate && this.settings.autoFetchTitle) {
+        const url = this.extractUrl(textarea.value);
+        if (isValidUrl(url)) {
+          await this.tryFetchAndRename(file, url);
+        }
+      }
       await this.onLoadFile(file);
     };
     const cancelBtn = btnContainer.createEl("button", { text: "Cancel", cls: "btn-edit" });
@@ -293,6 +298,31 @@ var UrlWebView = class extends import_obsidian.FileView {
       window.open(url, "_blank");
     }
   }
+  async tryFetchAndRename(file, url) {
+    let raw = null;
+    try {
+      const res = await (0, import_obsidian.requestUrl)({ url, method: "GET" });
+      raw = extractTitleFromHtml(res.text);
+    } catch (e) {
+    }
+    const sanitized = raw ? sanitizeFilename(decodeHtmlEntities(raw)) : "";
+    if (!sanitized) {
+      new import_obsidian.Notice("Could not fetch title");
+      return;
+    }
+    const parentPath = file.parent ? file.parent.path : "";
+    const prefix = parentPath && parentPath !== "/" ? `${parentPath}/` : "";
+    let candidate = (0, import_obsidian.normalizePath)(`${prefix}${sanitized}.url`);
+    for (let i = 1; this.app.vault.getAbstractFileByPath(candidate); i++) {
+      candidate = (0, import_obsidian.normalizePath)(`${prefix}${sanitized} (${i}).url`);
+    }
+    try {
+      await this.app.fileManager.renameFile(file, candidate);
+      new import_obsidian.Notice(`Renamed to ${sanitized}`);
+    } catch (e) {
+      new import_obsidian.Notice("Rename failed");
+    }
+  }
 };
 var UrlViewerSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
@@ -310,6 +340,10 @@ var UrlViewerSettingTab = class extends import_obsidian.PluginSettingTab {
       this.plugin.settings.fullscreenMode = value;
       await this.plugin.saveSettings();
     }));
+    new import_obsidian.Setting(containerEl).setName("Auto-fetch URL title on save").setDesc("Automatically fetch the page title and rename the file when saving a new URL.").addToggle((toggle) => toggle.setValue(this.plugin.settings.autoFetchTitle).onChange(async (value) => {
+      this.plugin.settings.autoFetchTitle = value;
+      await this.plugin.saveSettings();
+    }));
   }
 };
 function isWebviewTag(el) {
@@ -322,4 +356,28 @@ function isValidUrl(url) {
   } catch (error) {
     return false;
   }
+}
+function extractTitleFromHtml(html) {
+  const headEnd = html.indexOf("</head>");
+  const scope = headEnd >= 0 ? html.slice(0, headEnd + 7) : html;
+  const pick = (key) => {
+    const re = new RegExp(`<meta\\b[^>]*(?:property|name)\\s*=\\s*["']${key}["'][^>]*>`, "i");
+    const tag = re.exec(scope);
+    if (!tag) return null;
+    const c = /content\s*=\s*["']([^"']*)["']/i.exec(tag[0]);
+    const v2 = c ? c[1].trim() : "";
+    return v2 || null;
+  };
+  const og = pick("og:title") || pick("twitter:title");
+  if (og) return og;
+  const t = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(scope);
+  const v = t ? t[1].trim() : "";
+  return v || null;
+}
+function decodeHtmlEntities(s) {
+  const map = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'", "&nbsp;": " " };
+  return s.replace(/&(?:amp|lt|gt|quot|apos|nbsp);/g, (e) => map[e]).replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16))).replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)));
+}
+function sanitizeFilename(s) {
+  return s.replace(/[\/\\:*?"<>|]/g, "").replace(/\s+/g, " ").trim();
 }
