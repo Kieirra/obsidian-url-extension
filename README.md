@@ -89,7 +89,7 @@ Configure in Settings > Community plugins > `.url WebView Opener`:
 
 | Version | Date | Notes |
 | --- | --- | --- |
-| `1.4.0` | 2026-05-12 | Auto-fetch the page title and rename the file when saving a new URL, and fix back/forward navigation buttons synchronisation |
+| `1.4.0` | 2026-05-12 | Auto-fetch the page title and rename the file when saving a new URL |
 | `1.3.1` | 2025-09-01| Fix error when clicking on "Edit URL" that do not open the editor |
 | `1.3.0` | 2025-09-01 | Add file context-menu action "Edit URL" and when "Open in browser by default" is enabled, automatically close the empty Obsidian tab after opening in the browser and fix the 'Failed to open' error |
 | `1.2.2` | 2025-08-18 | Fix "Failed to open" when "Open in browser by default" is enable for new/empty url file |
