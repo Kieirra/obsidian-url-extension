@@ -1,6 +1,6 @@
 {
   "name": "obsidian-url-webview",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Opens .url files in a webview.",
   "main": "main.js",
   "scripts": {
