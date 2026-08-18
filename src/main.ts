@@ -14,8 +14,8 @@ const DEFAULT_SETTINGS: UrlViewerSettings = {
 
 const VIEW_TYPE_WEB = "url-webview";
 
-// Did not find the right type for webview in obsidian.d.ts
-// So i need this to by pass automatic scan for publishing
+// obsidian.d.ts does not expose a type for Electron's <webview> element,
+// so we declare only the surface we actually use.
 type WebviewTag = HTMLElement & {
     src: string;
     reload: () => void;
@@ -48,7 +48,7 @@ export default class UrlInternalViewerPlugin extends Plugin {
     private refreshViews() {
         this.app.workspace.iterateAllLeaves((leaf) => {
             if (leaf.view instanceof UrlWebView) {
-                (leaf.view as UrlWebView).updateFullscreenMode();
+                leaf.view.updateFullscreenMode();
             }
         });
     }
@@ -168,7 +168,7 @@ class UrlWebView extends FileView {
     async onLoadFile(file: TFile): Promise<void> {
         const content = await this.app.vault.read(file);
         const url = this.extractUrl(content);      
-        setTimeout(() => {
+        window.setTimeout(() => {
             if (this.isEditing || !isValidUrl(url)) {
                 this.showEditMode(file, content);
             } else {
@@ -207,14 +207,14 @@ class UrlWebView extends FileView {
         const container = this.containerEl.children[1];
         container.empty();
 
-        const webviewEl = document.createElement("webview");
+        const webviewEl = activeDocument.createElement("webview");
         if (!isWebviewTag(webviewEl)) {
             console.error("webviewEl is not a WebviewTag");
             return;
         }
 
         webviewEl.src = url;
-        webviewEl.setAttribute("style", "width:100%;height:100%;");
+        webviewEl.addClass("url-webview-frame");
         container.appendChild(webviewEl);
         this.webviewEl = webviewEl;
 
@@ -277,7 +277,7 @@ class UrlWebView extends FileView {
             if (this.deleteOnCancelIfUntouched) {
                 const currentContent = await this.app.vault.read(file);
                 if (this.isEmptyUrlContent(currentContent)) {
-                    await this.app.vault.delete(file);
+                    await this.app.fileManager.trashFile(file);
                     this.isEditing = false;
                     this.deleteOnCancelIfUntouched = false;
                     this.leaf.detach();
@@ -286,7 +286,7 @@ class UrlWebView extends FileView {
             }
             this.isEditing = false;
             this.deleteOnCancelIfUntouched = false;
-            this.onLoadFile(file);
+            await this.onLoadFile(file);
         };
     }
 
@@ -301,7 +301,7 @@ class UrlWebView extends FileView {
     public startEditing(deleteOnCancelIfUntouched: boolean = false) {
         this.isEditing = true;
         this.deleteOnCancelIfUntouched = deleteOnCancelIfUntouched;
-        if (this.file != null) this.onLoadFile(this.file);
+        if (this.file != null) void this.onLoadFile(this.file);
     }
 
     private isEmptyUrlContent(content: string): boolean {
@@ -318,7 +318,7 @@ class UrlWebView extends FileView {
 
     private toggleEditMode() {
         this.isEditing = !this.isEditing;
-        if (this.file) this.onLoadFile(this.file);
+        if (this.file) void this.onLoadFile(this.file);
     }
 
     private async openInBrowser() {
@@ -407,7 +407,7 @@ function isValidUrl(url: string): boolean {
     try {
         new URL(url);
         return true;
-    } catch (error) {
+    } catch {
         return false;
     }
 }
@@ -438,5 +438,5 @@ function decodeHtmlEntities(s: string): string {
 }
 
 function sanitizeFilename(s: string): string {
-    return s.replace(/[\/\\:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+    return s.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
 }

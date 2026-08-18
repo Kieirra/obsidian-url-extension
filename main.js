@@ -156,7 +156,7 @@ var UrlWebView = class extends import_obsidian.FileView {
   async onLoadFile(file) {
     const content = await this.app.vault.read(file);
     const url = this.extractUrl(content);
-    setTimeout(() => {
+    window.setTimeout(() => {
       if (this.isEditing || !isValidUrl(url)) {
         this.showEditMode(file, content);
       } else {
@@ -191,13 +191,13 @@ var UrlWebView = class extends import_obsidian.FileView {
   showViewMode(url) {
     const container = this.containerEl.children[1];
     container.empty();
-    const webviewEl = document.createElement("webview");
+    const webviewEl = activeDocument.createElement("webview");
     if (!isWebviewTag(webviewEl)) {
       console.error("webviewEl is not a WebviewTag");
       return;
     }
     webviewEl.src = url;
-    webviewEl.setAttribute("style", "width:100%;height:100%;");
+    webviewEl.addClass("url-webview-frame");
     container.appendChild(webviewEl);
     this.webviewEl = webviewEl;
     const actions = this.containerEl.querySelectorAll(".view-action");
@@ -251,7 +251,7 @@ var UrlWebView = class extends import_obsidian.FileView {
       if (this.deleteOnCancelIfUntouched) {
         const currentContent = await this.app.vault.read(file);
         if (this.isEmptyUrlContent(currentContent)) {
-          await this.app.vault.delete(file);
+          await this.app.fileManager.trashFile(file);
           this.isEditing = false;
           this.deleteOnCancelIfUntouched = false;
           this.leaf.detach();
@@ -260,7 +260,7 @@ var UrlWebView = class extends import_obsidian.FileView {
       }
       this.isEditing = false;
       this.deleteOnCancelIfUntouched = false;
-      this.onLoadFile(file);
+      await this.onLoadFile(file);
     };
   }
   normalizeUrl(url) {
@@ -273,7 +273,7 @@ var UrlWebView = class extends import_obsidian.FileView {
   startEditing(deleteOnCancelIfUntouched = false) {
     this.isEditing = true;
     this.deleteOnCancelIfUntouched = deleteOnCancelIfUntouched;
-    if (this.file != null) this.onLoadFile(this.file);
+    if (this.file != null) void this.onLoadFile(this.file);
   }
   isEmptyUrlContent(content) {
     var _a;
@@ -289,7 +289,7 @@ var UrlWebView = class extends import_obsidian.FileView {
   }
   toggleEditMode() {
     this.isEditing = !this.isEditing;
-    if (this.file) this.onLoadFile(this.file);
+    if (this.file) void this.onLoadFile(this.file);
   }
   async openInBrowser() {
     if (this.file) {
@@ -353,7 +353,7 @@ function isValidUrl(url) {
   try {
     new URL(url);
     return true;
-  } catch (error) {
+  } catch (e) {
     return false;
   }
 }
@@ -379,5 +379,5 @@ function decodeHtmlEntities(s) {
   return s.replace(/&(?:amp|lt|gt|quot|apos|nbsp);/g, (e) => map[e]).replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16))).replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)));
 }
 function sanitizeFilename(s) {
-  return s.replace(/[\/\\:*?"<>|]/g, "").replace(/\s+/g, " ").trim();
+  return s.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim();
 }

@@ -1,4 +1,4 @@
-# .url WebView Opener
+# URL WebView Opener
 
 > A lightweight and minimalist Obsidian plugin to view, open, and edit `.url` files directly in Obsidian’s native webview. Perfect for users who want to keep web documents or webapps accessible inside Obsidian, while standard links still open in your browser. If you simply want all links to open in a webview, use the Webview Core Plugin instead.
 
@@ -66,7 +66,7 @@ If you type a URL without a scheme (e.g. `www.google.com`), the plugin automatic
 
 ### Features
 
-Configure in Settings > Community plugins > `.url WebView Opener`:
+Configure in Settings > Community plugins > `URL WebView Opener`:
 
 - **Open in browser by default**: Automatically opens the link in your default browser when you click a `.url` file.
 - **Fullscreen mode**: Displays the webview in fullscreen for a more immersive experience, hiding the header bar. You can toggle the header bar back by clicking the chevron icon.
@@ -89,6 +89,7 @@ Configure in Settings > Community plugins > `.url WebView Opener`:
 
 | Version | Date | Notes |
 | --- | --- | --- |
+| `1.4.1` | 2026-08-18 | Rename the plugin to comply with the community directory naming rules; popout window compatibility, respect the user's file deletion preference, and code scan cleanups |
 | `1.4.0` | 2026-05-12 | Auto-fetch the page title and rename the file when saving a new URL |
 | `1.3.1` | 2025-09-01| Fix error when clicking on "Edit URL" that do not open the editor |
 | `1.3.0` | 2025-09-01 | Add file context-menu action "Edit URL" and when "Open in browser by default" is enabled, automatically close the empty Obsidian tab after opening in the browser and fix the 'Failed to open' error |

@@ -3,7 +3,7 @@
 /* -- Normal mode -- */
 
 .url-webview-opener .view-header {
-    height: 32px !important;
+    height: 32px;
 }
 
 .url-webview-opener .view-header .view-actions {
@@ -17,10 +17,10 @@
 }
 
 .url-webview-opener .view-content {
-    padding: 0 !important;
+    padding: 0;
 }
 
-.url-webview-opener .view-content webview {
+.url-webview-opener .view-content .url-webview-frame {
     width: 100%;
     height: 100%;
 }
@@ -83,7 +83,7 @@
     transform: translateY(0);
 }
 
-.url-webview-opener.fullscreen-mode .view-content webview {
+.url-webview-opener.fullscreen-mode .view-content .url-webview-frame {
     position: absolute;
     top: 0;
 }

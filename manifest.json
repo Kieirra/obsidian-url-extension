@@ -1,6 +1,6 @@
 {
     "id": "url-webview-opener",
-    "name": ".url WebView Opener",
+    "name": "URL WebView Opener",
     "version": "1.4.0",
     "minAppVersion": "1.8.10",
     "description": "Opens .url files in the internal webview.",
